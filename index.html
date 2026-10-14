@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>カード台帳（試作）</title>
+<style>
+:root{--bg:#F3F4F6;--surface:#fff;--fg:#15171C;--muted:#596070;--line:#DCDFE5;--accent:#1D5BC9;--chip:#E7EDF8;
+  --mono:ui-monospace,Menlo,Consolas,monospace;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#121418;--surface:#1B1E24;--fg:#E8EAEE;--muted:#A0A7B4;--line:#2E333C;--accent:#7DA6F0;--chip:#232C3D;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.65 "Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif}
+.top{padding:12px 16px;font-weight:700;font-size:13px;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);background:var(--surface)}
+main{max-width:520px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:18px}
+h1{font-size:21px;line-height:1.35;margin:0;overflow-wrap:anywhere}
+h2{font-size:16px;margin:0 0 8px}
+p{margin:0}
+.muted{color:var(--muted);font-size:13px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{background:var(--chip);font-size:13px;font-weight:700;padding:2px 10px;border-radius:999px}
+.chip.sample{background:transparent;border:1px dashed var(--muted);color:var(--muted);font-weight:500}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.fields{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:0}
+.fields dt{color:var(--muted);font-size:13px}
+.fields dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.memo{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:12px}
+.history{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.history li{display:flex;gap:16px;padding:10px 0;border-bottom:1px solid var(--line)}
+.history time{color:var(--muted);font-size:13px;padding-top:2px}
+.btn{font:inherit;font-size:14px;font-weight:500;min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<header class="top">カード台帳（試作）</header>
+<main id="app"><p class="muted">読み込み中…</p></main>
+<script>
+(function () {
+  var app = document.getElementById('app');
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function dl(k, v, mono) { return v ? '<dt>' + k + '</dt><dd' + (mono ? ' class="mono"' : '') + '>' + esc(v) + '</dd>' : ''; }
+  function id() { var h = decodeURIComponent(location.hash.replace(/^#/, '')).trim(); return /^[A-Za-z0-9_-]{1,32}$/.test(h) ? h : ''; }
+
+  function render(cards) {
+    var key = id();
+    var c = key && Object.prototype.hasOwnProperty.call(cards, key) ? cards[key] : null;
+    if (!key) {
+      app.innerHTML = '<h1>ケースをかざしてください</h1><p class="muted">このページはケースのNFCタグから開きます。</p>';
+      document.title = 'カード台帳（試作）';
+      return;
+    }
+    if (!c) {
+      app.innerHTML = '<h1>このタグは見つかりません</h1><p class="muted">タグID <span class="mono">' + esc(key) + '</span> はまだ登録されていません。</p>';
+      return;
+    }
+    document.title = (c.name || 'カード情報') + ' | カード台帳（試作）';
+    var grade = [c.grader, c.grade].filter(Boolean).join(' ');
+    var chip = c.sample ? '<span class="chip sample">見本</span>' : (grade ? '<span class="chip">' + esc(grade) + '</span>' : '');
+    var verify = c.cert && c.grader === 'PSA'
+      ? '<a class="btn" href="https://www.psacard.com/cert/' + encodeURIComponent(c.cert) + '" target="_blank" rel="noopener">PSA公式サイトで鑑定番号を照会</a>' : '';
+    var history = (c.history || []).map(function (e) {
+      return '<li><time class="mono">' + esc(e.date) + '</time><span>' + esc(e.text) + '</span></li>';
+    }).join('');
+    app.innerHTML =
+      '<div class="head"><h1>' + esc(c.name) + '</h1>' + chip + '</div>' +
+      '<section class="panel"><dl class="fields">' +
+        dl('セット・番号', c.set) + dl('鑑定会社', c.grader) + dl('グレード', c.grade) + dl('鑑定番号', c.cert, true) +
+      '</dl>' + (c.note ? '<p class="memo">' + esc(c.note) + '</p>' : '') + '</section>' +
+      verify +
+      (history ? '<section><h2>来歴</h2><ol class="history">' + history + '</ol></section>' : '') +
+      '<p class="muted">タグID <span class="mono">' + esc(key) + '</span></p>';
+  }
+
+  var cards = null;
+  fetch('cards.json', { cache: 'no-store' })
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (data) { cards = data || {}; render(cards); })
+    .catch(function () {
+      app.innerHTML = '<h1>うまく表示できませんでした</h1><p class="muted">電波の良い場所で、もう一度かざしてください。</p>';
+    });
+  window.addEventListener('hashchange', function () { if (cards) render(cards); });
+})();
+</script>
+</body>
+</html>

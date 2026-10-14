@@ -1,0 +1,13 @@
+name = "nfc-case-ledger"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+# 画面上部に出る名前。ブランドが決まったら書き換える
+BRAND_NAME = "カード台帳（試作）"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nfc-case-ledger"
+# `npx wrangler d1 create nfc-case-ledger` の結果に出る database_id を貼り付ける
+database_id = "REPLACE_WITH_YOUR_DATABASE_ID"
